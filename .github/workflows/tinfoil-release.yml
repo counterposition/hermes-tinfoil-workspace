@@ -1,3 +1,4 @@
+# From https://github.com/tinfoilsh/tinfoil-containers-template
 name: Tinfoil Release
 
 run-name: Release ${{ inputs.version }}
