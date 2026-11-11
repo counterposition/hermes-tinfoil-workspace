@@ -1,18 +1,45 @@
-# Tinfoil Container Configuration
-# For updates: edit this file, commit, run the workflow (e.g., v0.0.2)
-cvm-version: 0.14.7
+# A confidential workspace for Hermes Agent.
+#
+# Hermes' terminal, file and code tools run in this Ubuntu container, inside an
+# attested enclave, when you select the tinfoil-sandbox backend:
+#   https://github.com/counterposition/tinfoil-hermes-provider
+#
+# Before your first release, replace the key under SSH_KEYS with your own
+# public key. It is part of the measured config, so the attestation also
+# proves who can log in. To change resources, see
+# https://docs.tinfoil.sh/containers/limits
+cvm-version: 0.14.8
 cpus: 2
 memory: 8192
 
+networks:
+  workspace:
+    egress: open  # the agent can install packages and clone repos
+
 containers:
-  - name: "hello-world"
-    image: "ghcr.io/tinfoilsh/tinfoil-containers-hello-world@sha256:c943b1cab16409e2e686ad71deab30364c27421852cdd6b3080df1c7a38331ed"
+  - name: "workspace"
+    # Tinfoil's confidential-ubuntu v0.6.6: Ubuntu 24.04 with sshd, Python 3, git and curl.
+    image: "ghcr.io/tinfoilsh/confidential-ubuntu@sha256:c8c876ee9c914d62f6c9ff4fcc56038f9e4eec7717d14711a12c66d76ad786a7"
+    restart: on-failure
+    cvm_admin: true
+    read_only: false
+    stop_signal: SIGRTMIN+3
+    stop_timeout: 120
+    networks: [workspace]
+    ports: ["22:22"]
     env:
-      - MESSAGE: "Hello from Tinfoil"
-    secrets:
-      - GREETING_TOKEN
+      - WORKSPACE_HOSTNAME: "hermes-workspace"
+      - SSH_KEYS: |-
+          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGgyCAELDQc+aEA2kfhwzKJT84D7QErsNGhb3gPKh0JC hermes-tinfoil-workspace
+    tmpfs:
+      /run: "rw,nosuid,nodev,mode=755"
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
 shim:
-  upstream-port: 8080
-  paths:
-    - /*
+  upstream-port: 22
+  authenticated: false

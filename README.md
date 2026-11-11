@@ -1,42 +1,66 @@
-# Tinfoil Containers Template
+# Hermes Agent workspace on Tinfoil
 
-A GitHub template repository for deploying a pre-built Docker image as a [Tinfoil Container](https://docs.tinfoil.sh/containers/overview) (in a secure enclave)
+A [Tinfoil Container](https://docs.tinfoil.sh/containers/overview) for
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) to work in. With
+the [`tinfoil-sandbox`](https://github.com/counterposition/tinfoil-hermes-provider)
+backend selected, Hermes' terminal, file and code tools run in this Ubuntu
+workspace instead of on your machine. The workspace runs in a hardware enclave
+that neither the cloud host nor Tinfoil can look into, and every connection
+checks the enclave's attestation first.
 
-Out of the box, this template deploys [`tinfoil-containers-hello-world`](https://github.com/tinfoilsh/tinfoil-containers-hello-world): a tiny HTTP server that reads a `MESSAGE` env var and a `GREETING_TOKEN` secret, and responds with both.
+Pair it with the `tinfoil-provider` plugin and both the model and the tools
+run in enclaves.
 
-## Deploy It
+## Set it up
 
-1. Click **[Use this template](https://github.com/tinfoilsh/tinfoil-containers-template/generate)** → **Create a new repository**
-2. In the [Tinfoil Dashboard](https://dash.tinfoil.sh), open the **Secrets** tab and add `GREETING_TOKEN` with any value
-3. Release a version by running the **Tinfoil Release** workflow:
-   - **CLI:** `gh workflow run tinfoil-release.yml -f version=v0.0.1`
-   - **UI:** **Actions** tab → **Tinfoil Release** → **Run workflow**, then enter the version
-4. **Containers** → **Deploy**, select your repo and tag, and click **Deploy**
+You need a Tinfoil organization with Containers enabled, an organization admin
+key, the [Tinfoil CLI](https://docs.tinfoil.sh/containers/cli) and an
+inference key (`tk_...`).
 
-Once running, `curl https://<container-name>.<org>.containers.tinfoil.dev` returns:
+1. **Use this template** → **Create a new repository**. Keep it public: the
+   config and its release evidence are what clients verify.
+2. In `tinfoil-config.yml`, replace the key under `SSH_KEYS` with your SSH
+   public key (`cat ~/.ssh/id_ed25519.pub`).
+3. Publish a measured release:
 
-```
-MESSAGE: <value from tinfoil-config.yml>
-GREETING_TOKEN: <present if secret exists>
-```
+   ```bash
+   gh workflow run tinfoil-release.yml -f version=v0.1.0
+   ```
 
-## Use your own image
+4. Create the container once both release workflows have finished:
 
-1. If you have a prebuilt image, edit `tinfoil-config.yml` to point at the image you want to deploy: change `image:` to your `<repo>@sha256:<digest>`, adjust `env`/`secrets`/`shim` for your container, then release a new version.
-2. If you have your own code in a private repo, [`tinfoil-containers-hello-world`](https://github.com/tinfoilsh/tinfoil-containers-hello-world) shows the build-and-publish side and can be added to an existing repository.
-3. If you have your own code in a public repo, use the simple [`tinfoil-public-containers-template`](https://github.com/tinfoilsh/tinfoil-public-containers-template) for an all-in-one-repo example. Since the `tinfoil-config.yml` has to be public, public app code can live in the same repo as the config.
+   ```bash
+   tinfoil container create hermes-workspace --repo <you>/<your-repo> --tag v0.1.0
+   ```
 
-## Updating
+5. Point Hermes at it:
 
-Edit `tinfoil-config.yml`, commit, then release a new version (`gh workflow run tinfoil-release.yml -f version=v0.0.2`, or via the **Actions** tab). Then click **Update** in the dashboard. Each release creates an auditable record in the Sigstore transparency log.
+   ```bash
+   hermes plugins install counterposition/tinfoil-hermes-provider/sandbox
+   ```
 
-## Documentation
+   ```bash
+   hermes config set terminal.tinfoil_container hermes-workspace
+   ```
 
-For the full configuration reference, secrets management, debug mode, and more:
+   ```bash
+   hermes config set terminal.backend tinfoil
+   ```
 
-**[docs.tinfoil.sh/containers](https://docs.tinfoil.sh/containers/overview)**
+   Hermes reads `TINFOIL_API_KEY` (an inference key) to open the tunnel.
 
-## Support
+## What's in it
 
-- [Documentation](https://docs.tinfoil.sh)
-- [Email Support](mailto:contact@tinfoil.sh)
+- Tinfoil's [confidential-ubuntu](https://github.com/tinfoilsh/confidential-ubuntu)
+  image, pinned by digest: Ubuntu 24.04 with Python 3, git, curl and sshd.
+- 2 CPUs and 8 GB of memory. Raise `cpus` and `memory` in the config and
+  release a new version if your agent needs more.
+- Open internet access, so the agent can install packages and clone
+  repositories.
+- No persistent disk: files live in the enclave's memory and are gone after a
+  restart. Tinfoil's
+  [encrypted volumes](https://docs.tinfoil.sh/containers/encrypted-volumes)
+  add one.
+
+Built from Tinfoil's
+[containers template](https://github.com/tinfoilsh/tinfoil-containers-template).
